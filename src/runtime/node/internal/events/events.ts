@@ -31,9 +31,25 @@ import { AsyncResource } from "node:async_hooks";
 // added to it. This is a useful default which helps finding memory leaks.
 let defaultMaxListeners = 10;
 
-const AsyncIteratorPrototype = Object.getPrototypeOf(
-  Object.getPrototypeOf(async function* () {}).prototype,
-);
+// %AsyncIteratorPrototype% has no global binding and is derived from an async
+// generator function instead. Bundlers targeting < ES2018 down-level that
+// function into a plain one and break its prototype chain, so derive the
+// prototype lazily and fall back to Object.prototype when the engine
+// intrinsics are unavailable. The async iterator itself stays functional:
+// `next`, `return`, `throw` and `[Symbol.asyncIterator]` are own properties
+// of the created object.
+let _asyncIteratorPrototype: any;
+function getAsyncIteratorPrototype(): any {
+  if (!_asyncIteratorPrototype) {
+    const asyncGeneratorPrototype = Object.getPrototypeOf(
+      async function* () {},
+    ).prototype;
+    _asyncIteratorPrototype = asyncGeneratorPrototype
+      ? Object.getPrototypeOf(asyncGeneratorPrototype)
+      : Object.prototype;
+  }
+  return _asyncIteratorPrototype;
+}
 
 // Inspect (mocked)
 const inspect = (value: any, _opts?: any) => value;
@@ -771,7 +787,7 @@ export const on: typeof nodeEvents.on = function on(
         },
       },
     },
-    AsyncIteratorPrototype,
+    getAsyncIteratorPrototype(),
   );
 
   // Adding event handlers
